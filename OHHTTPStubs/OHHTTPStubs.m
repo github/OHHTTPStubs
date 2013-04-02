@@ -73,6 +73,7 @@
     {
         self.requestHandlers = [NSMutableArray array];
         [[self class] setEnabled:YES];
+        
     }
     return self;
 }
@@ -252,10 +253,10 @@
             [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookies:cookies forURL:request.URL mainDocumentURL:request.mainDocumentURL];
         }
         
-        execute_after(requestTime,^{
+        execute_after(self, requestTime, ^{
             [client URLProtocol:self didReceiveResponse:urlResponse cacheStoragePolicy:NSURLCacheStorageNotAllowed];
             
-            execute_after(responseTime,^{
+            execute_after(self, responseTime, ^{
                 [client URLProtocol:self didLoadData:responseStub.responseData];
                 [client URLProtocolDidFinishLoading:self];
             });
@@ -265,7 +266,7 @@
 #endif
     } else {
         // Send the canned error
-        execute_after(responseStub.responseTime, ^{
+        execute_after(self, responseStub.responseTime, ^{
             [client URLProtocol:self didFailWithError:responseStub.error];
         });
     }
@@ -280,11 +281,20 @@
 // Delayed execution utility methods
 /////////////////////////////////////////////
 
+- (void)delayedExecute:(dispatch_block_t)block {
+    block();
+}
+
 //! execute the block after a given amount of seconds
-void execute_after(NSTimeInterval delayInSeconds, dispatch_block_t block)
+void execute_after(NSObject* target, NSTimeInterval delayInSeconds, dispatch_block_t block)
 {
-	dispatch_time_t popTime = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds * NSEC_PER_SEC));
-	dispatch_after(popTime, dispatch_get_main_queue(), block);
+    dispatch_block_t blockCopy = [block copy];
+    
+    [target performSelector:@selector(delayedExecute:) withObject:blockCopy afterDelay:delayInSeconds];
+    
+#if ! __has_feature(objc_arc)
+    [blockCopy autorelease];
+#endif
 }
 
 @end
